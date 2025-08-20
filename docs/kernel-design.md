@@ -55,12 +55,18 @@ main.c (Supervisor Mode)
 # and causes each hart (i.e. CPU) to jump there.
 # kernel.ld causes the following code to
 # be placed at 0x80000000.
+# qemu -kernel 将内核加载到 0x80000000
+# 并使每个 hart（即 CPU）跳转到这里
+# kernel.ld 使以下代码被放置在 0x80000000
 .section .text
 .global _entry
 _entry:
         # set up a stack for C.
         # stack0 is declared in start.c,
         # with a 4096-byte stack per CPU.
+        # sp = stack0 + ((hartid + 1) * 4096)
+        # 为 C 代码设置栈
+        # stack0 在 start.c 中声明，每个 CPU 有 4096 字节的栈
         # sp = stack0 + ((hartid + 1) * 4096)
         la sp, stack0
         li a0, 1024*4
@@ -69,6 +75,7 @@ _entry:
         mul a0, a0, a1
         add sp, sp, a0
         # jump to start() in start.c
+        # 跳转到 start.c 中的 start() 函数
         call start
 spin:
         j spin
@@ -100,34 +107,42 @@ spin:
 void start()
 {
   // set M Previous Privilege mode to Supervisor, for mret.
+  // 设置 M 模式的前一个特权级为 Supervisor，用于 mret 指令
   unsigned long x = r_mstatus();
   x &= ~MSTATUS_MPP_MASK;
   x |= MSTATUS_MPP_S;
   w_mstatus(x);
 
   // set M Exception Program Counter to main, for mret.
+  // 设置 M 模式异常程序计数器为 main，用于 mret 指令
   w_mepc((uint64)main);
 
   // disable paging for now.
+  // 暂时禁用分页
   w_satp(0);
 
   // delegate all interrupts and exceptions to supervisor mode.
+  // 将所有中断和异常委托给 supervisor 模式
   w_medeleg(0xffff);
   w_mideleg(0xffff);
   w_sie(r_sie() | SIE_SEIE | SIE_STIE);
 
   // configure Physical Memory Protection
+  // 配置物理内存保护
   w_pmpaddr0(0x3fffffffffffffull);
   w_pmpcfg0(0xf);
 
   // ask for clock interrupts.
+  // 请求时钟中断
   timerinit();
 
   // keep each CPU's hartid in its tp register, for cpuid().
+  // 将每个 CPU 的 hartid 保存在 tp 寄存器中，供 cpuid() 使用
   int id = r_mhartid();
   w_tp(id);
 
   // switch to supervisor mode and jump to main().
+  // 切换到 supervisor 模式并跳转到 main()
   asm volatile("mret");
 }
 ```
@@ -142,15 +157,19 @@ void start()
 2. **中断委托策略**
    ```c
    w_medeleg(0xffff);  // 异常委托给 S 模式
+                       // delegate exceptions to S mode
    w_mideleg(0xffff);  // 中断委托给 S 模式
+                       // delegate interrupts to S mode
    ```
    - **设计目的：** 让 S 模式内核直接处理大部分中断和异常
    - **性能优势：** 避免 M 模式和 S 模式之间的频繁切换
 
 3. **物理内存保护 (PMP)**
    ```c
-   w_pmpaddr0(0x3fffffffffffffull);
-   w_pmpcfg0(0xf);
+   w_pmpaddr0(0x3fffffffffffffull);  // 设置 PMP 地址范围
+                                     // set PMP address range
+   w_pmpcfg0(0xf);                   // 设置 PMP 配置（读写执行权限）
+                                     // set PMP configuration (read/write/execute permissions)
    ```
    - **安全机制：** 允许 S 模式访问所有物理内存
    - **配置含义：** 0xf = 读写执行权限
@@ -158,6 +177,7 @@ void start()
 4. **分页禁用**
    ```c
    w_satp(0);  // 禁用分页
+               // disable paging
    ```
    - **时机考虑：** 在页表建立之前必须禁用 MMU
    - **后续启用：** 在 `main.c` 中调用 `kvminithart()` 启用
@@ -172,24 +192,24 @@ void start()
 void main()
 {
   if(cpuid() == 0){  // 主核心 (Bootstrap CPU)
-    consoleinit();
-    printfinit();
+    consoleinit();     // 初始化控制台
+    printfinit();      // 初始化格式化输出
     printf("\n");
     printf("xv6 kernel is booting\n");
     printf("\n");
-    kinit();         // physical page allocator
-    kvminit();       // create kernel page table
-    kvminithart();   // turn on paging
-    procinit();      // process table
-    trapinit();      // trap vectors
-    trapinithart();  // install kernel trap vector
-    plicinit();      // set up interrupt controller
-    plicinithart();  // ask PLIC for device interrupts
-    binit();         // buffer cache
-    iinit();         // inode table
-    fileinit();      // file table
-    virtio_disk_init(); // emulated hard disk
-    userinit();      // first user process
+    kinit();         // physical page allocator - 物理页分配器
+    kvminit();       // create kernel page table - 创建内核页表
+    kvminithart();   // turn on paging - 启用分页
+    procinit();      // process table - 进程表初始化
+    trapinit();      // trap vectors - 中断向量表
+    trapinithart();  // install kernel trap vector - 安装内核中断向量
+    plicinit();      // set up interrupt controller - 设置中断控制器
+    plicinithart();  // ask PLIC for device interrupts - 请求 PLIC 设备中断
+    binit();         // buffer cache - 缓冲区缓存
+    iinit();         // inode table - inode 表
+    fileinit();      // file table - 文件表
+    virtio_disk_init(); // emulated hard disk - 模拟硬盘
+    userinit();      // first user process - 第一个用户进程
     __sync_synchronize();
     started = 1;
   } else {           // 从核心 (Application Processors)
@@ -197,7 +217,7 @@ void main()
       ;
     __sync_synchronize();
     printf("hart %d starting\n", cpuid());
-    kvminithart();    // turn on paging
+    kvminithart();    // turn on paging - 启用分页
     trapinithart();   // install kernel trap vector
     plicinithart();   // ask PLIC for device interrupts
   }
@@ -218,14 +238,19 @@ void main()
    **阶段一：基础设施**
    ```c
    consoleinit();   // 控制台 - 调试输出必需
+                    // console initialization - required for debug output
    printfinit();    // 格式化输出
+                    // formatted output initialization
    ```
 
    **阶段二：内存管理**
    ```c
    kinit();         // 物理页分配器
+                    // physical page allocator
    kvminit();       // 内核页表创建
+                    // create kernel page table
    kvminithart();   // 启用分页
+                    // turn on paging
    ```
    - **依赖关系：** 页表创建依赖物理页分配器
    - **时机选择：** 在进程管理之前启用虚拟内存
@@ -233,24 +258,33 @@ void main()
    **阶段三：进程与中断**
    ```c
    procinit();      // 进程表初始化
+                    // process table initialization
    trapinit();      // 中断向量表
+                    // trap vectors
    trapinithart();  // 安装中断处理程序
+                    // install kernel trap vector
    ```
    - **设计考虑：** 进程管理需要中断支持（时钟中断用于调度）
 
    **阶段四：设备与文件系统**
    ```c
    plicinit();      // 中断控制器
+                    // set up interrupt controller
    binit();         // 缓冲区缓存
+                    // buffer cache
    iinit();         // inode 表
+                    // inode table
    fileinit();      // 文件表
+                    // file table
    virtio_disk_init(); // 磁盘驱动
+                       // emulated hard disk
    ```
    - **分层设计：** 文件系统依赖块设备，块设备依赖中断
 
    **阶段五：用户空间**
    ```c
    userinit();      // 创建第一个用户进程
+                    // first user process
    ```
 
 ### 1.6 内存布局设计
@@ -315,20 +349,20 @@ void main()
 **关键 CSR 寄存器：**
 
 ```c
-// 状态寄存器
-r_mstatus() / w_mstatus()  // Machine 状态
-r_sstatus() / w_sstatus()  // Supervisor 状态
+// 状态寄存器 - Status Registers
+r_mstatus() / w_mstatus()  // Machine 状态 - Machine status
+r_sstatus() / w_sstatus()  // Supervisor 状态 - Supervisor status
 
-// 异常处理
-r_mepc() / w_mepc()        // Machine 异常 PC
-r_sepc() / w_sepc()        // Supervisor 异常 PC
+// 异常处理 - Exception Handling
+r_mepc() / w_mepc()        // Machine 异常 PC - Machine exception PC
+r_sepc() / w_sepc()        // Supervisor 异常 PC - Supervisor exception PC
 
-// 中断控制
-r_mie() / w_mie()          // Machine 中断使能
-r_sie() / w_sie()          // Supervisor 中断使能
+// 中断控制 - Interrupt Control
+r_mie() / w_mie()          // Machine 中断使能 - Machine interrupt enable
+r_sie() / w_sie()          // Supervisor 中断使能 - Supervisor interrupt enable
 
-// 地址转换
-r_satp() / w_satp()        // Supervisor 地址转换和保护
+// 地址转换 - Address Translation
+r_satp() / w_satp()        // Supervisor 地址转换和保护 - Supervisor address translation and protection
 ```
 
 ### 1.8 启动流程的设计优势
@@ -378,32 +412,35 @@ r_satp() / w_satp()        // Supervisor 地址转换和保护
 **核心数据结构：**
 
 ```c
-// 进程状态枚举
+// 进程状态枚举 - Process state enumeration
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
-// 进程控制块 (PCB)
+// 进程控制块 (PCB) - Process Control Block
 struct proc {
   struct spinlock lock;
 
   // p->lock must be held when using these:
-  enum procstate state;        // 进程状态
-  void *chan;                  // 如果非零，表示在 chan 上睡眠
-  int killed;                  // 如果非零，表示已被杀死
-  int xstate;                  // 退出状态，返回给父进程的 wait
-  int pid;                     // 进程 ID
+  // 使用以下字段时必须持有 p->lock:
+  enum procstate state;        // 进程状态 - process state
+  void *chan;                  // 如果非零，表示在 chan 上睡眠 - if non-zero, sleeping on chan
+  int killed;                  // 如果非零，表示已被杀死 - if non-zero, have been killed
+  int xstate;                  // 退出状态，返回给父进程的 wait - exit status to be returned to parent's wait
+  int pid;                     // 进程 ID - process ID
 
   // proc_tree_lock must be held when using this:
-  struct proc *parent;         // 父进程
+  // 使用此字段时必须持有 proc_tree_lock:
+  struct proc *parent;         // 父进程 - parent process
 
   // these are private to the process, so p->lock need not be held.
-  uint64 kstack;               // 内核栈的虚拟地址
-  uint64 sz;                   // 进程内存大小 (字节)
-  pagetable_t pagetable;       // 用户页表
-  struct trapframe *trapframe; // trampoline.S 的数据页
-  struct context context;      // swtch() 这里进行上下文切换
-  struct file *ofile[NOFILE];  // 打开的文件
-  struct inode *cwd;           // 当前目录
-  char name[16];               // 进程名称 (调试用)
+  // 以下是进程私有的，因此不需要持有 p->lock:
+  uint64 kstack;               // 内核栈的虚拟地址 - virtual address of kernel stack
+  uint64 sz;                   // 进程内存大小 (字节) - size of process memory (bytes)
+  pagetable_t pagetable;       // 用户页表 - user page table
+  struct trapframe *trapframe; // trampoline.S 的数据页 - data page for trampoline.S
+  struct context context;      // swtch() 这里进行上下文切换 - swtch() here to run process
+  struct file *ofile[NOFILE];  // 打开的文件 - open files
+  struct inode *cwd;           // 当前目录 - current directory
+  char name[16];               // 进程名称 (调试用) - process name (debugging)
 };
 ```
 
@@ -425,6 +462,7 @@ struct proc {
 2. **锁机制设计**
    ```c
    struct spinlock lock;        // 保护进程状态
+                                // protect process state
    ```
    - **粒度选择:** 每个进程一个锁，减少锁竞争
    - **锁顺序:** 避免死锁的锁获取顺序
@@ -432,8 +470,11 @@ struct proc {
 3. **内存管理集成**
    ```c
    uint64 sz;                   // 进程内存大小
+                                // process memory size
    pagetable_t pagetable;       // 用户页表
+                                // user page table
    uint64 kstack;               // 内核栈
+                                // kernel stack
    ```
    - **地址空间隔离:** 每个进程独立的页表
    - **内核栈分离:** 每个进程独立的内核栈
@@ -450,11 +491,13 @@ int fork(void)
   struct proc *p = myproc();
 
   // 分配进程结构
+  // Allocate process structure
   if((np = allocproc()) == 0){
     return -1;
   }
 
   // 复制用户内存从父进程到子进程
+  // Copy user memory from parent to child
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
     freeproc(np);
     release(&np->lock);
@@ -463,12 +506,15 @@ int fork(void)
   np->sz = p->sz;
 
   // 复制保存的用户寄存器
+  // Copy saved user registers
   *(np->trapframe) = *(p->trapframe);
 
   // 让 fork 在子进程中返回 0
+  // Cause fork to return 0 in the child
   np->trapframe->a0 = 0;
 
   // 增加打开文件的引用计数
+  // Increment reference counts on open file descriptors
   for(i = 0; i < NOFILE; i++)
     if(p->ofile[i])
       np->ofile[i] = filedup(p->ofile[i]);
@@ -503,7 +549,8 @@ int fork(void)
    ```c
    for(i = 0; i < NOFILE; i++)
      if(p->ofile[i])
-       np->ofile[i] = filedup(p->ofile[i]);
+       np->ofile[i] = filedup(p->ofile[i]);  // 复制文件描述符
+                                             // copy file descriptor
    ```
    - 子进程继承父进程的打开文件
    - 增加文件引用计数
@@ -511,7 +558,9 @@ int fork(void)
 3. **返回值设计**
    ```c
    np->trapframe->a0 = 0;  // 子进程返回 0
+                           // child returns 0
    return pid;             // 父进程返回子进程 PID
+                           // parent returns child PID
    ```
    - 经典的 UNIX fork 语义
 
@@ -528,17 +577,23 @@ void scheduler(void)
   c->proc = 0;
   for(;;){
     // 避免死锁：必须在没有锁的情况下启用中断
+    // Avoid deadlock by ensuring that devices can interrupt
     intr_on();
 
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
         // 切换到选中的进程，它是 RUNNABLE 状态
+        // Switch to chosen process. It is the process's job
+        // to release its lock and then reacquire it
+        // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
         swtch(&c->context, &p->context);
 
         // 进程完成运行
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
         c->proc = 0;
       }
       release(&p->lock);
@@ -560,8 +615,10 @@ void scheduler(void)
 
 3. **多核支持**
    ```c
-   struct cpu *c = mycpu();
-   c->proc = p;
+   struct cpu *c = mycpu();  // 获取当前 CPU 结构
+                             // get current CPU structure
+   c->proc = p;              // 设置当前运行的进程
+                             // set currently running process
    ```
    - 每个 CPU 核心独立调度
    - 无全局调度队列，减少锁竞争
@@ -573,10 +630,10 @@ void scheduler(void)
 **上下文结构：**
 ```c
 struct context {
-  uint64 ra;  // 返回地址
-  uint64 sp;  // 栈指针
+  uint64 ra;  // 返回地址 - return address
+  uint64 sp;  // 栈指针 - stack pointer
 
-  // 被调用者保存的寄存器
+  // 被调用者保存的寄存器 - callee-saved registers
   uint64 s0;
   uint64 s1;
   uint64 s2;
@@ -596,17 +653,19 @@ struct context {
 ```assembly
 .globl swtch
 swtch:
-        sd ra, 0(a0)
-        sd sp, 8(a0)
-        sd s0, 16(a0)
-        sd s1, 24(a0)
+        sd ra, 0(a0)    # 保存返回地址 - save return address
+        sd sp, 8(a0)    # 保存栈指针 - save stack pointer
+        sd s0, 16(a0)   # 保存 s0 寄存器 - save s0 register
+        sd s1, 24(a0)   # 保存 s1 寄存器 - save s1 register
         # ... 保存所有被调用者保存的寄存器
+        # ... save all callee-saved registers
         
-        ld ra, 0(a1)
-        ld sp, 8(a1)
-        ld s0, 16(a1)
-        ld s1, 24(a1)
+        ld ra, 0(a1)    # 恢复返回地址 - restore return address
+        ld sp, 8(a1)    # 恢复栈指针 - restore stack pointer
+        ld s0, 16(a1)   # 恢复 s0 寄存器 - restore s0 register
+        ld s1, 24(a1)   # 恢复 s1 寄存器 - restore s1 register
         # ... 恢复所有被调用者保存的寄存器
+        # ... restore all callee-saved registers
         
         ret
 ```
@@ -631,27 +690,27 @@ swtch:
 **睡眠/唤醒机制：**
 
 ```c
-// 进程睡眠
+// 进程睡眠 - Process sleep
 void sleep(void *chan, struct spinlock *lk)
 {
   struct proc *p = myproc();
   
   acquire(&p->lock);
-  release(lk);
+  release(lk);  // 释放外部锁 - release external lock
 
-  // 进入睡眠状态
-  p->chan = chan;
-  p->state = SLEEPING;
+  // 进入睡眠状态 - go to sleep
+  p->chan = chan;        // 设置睡眠通道 - set sleep channel
+  p->state = SLEEPING;   // 设置进程状态为睡眠 - set process state to sleeping
 
-  sched();  // 调用调度器
+  sched();  // 调用调度器 - call scheduler
 
-  // 被唤醒后清除睡眠通道
+  // 被唤醒后清除睡眠通道 - clear sleep channel after wakeup
   p->chan = 0;
   release(&p->lock);
-  acquire(lk);
+  acquire(lk);  // 重新获取外部锁 - reacquire external lock
 }
 
-// 唤醒进程
+// 唤醒进程 - Wake up processes
 void wakeup(void *chan)
 {
   struct proc *p;
@@ -660,7 +719,7 @@ void wakeup(void *chan)
     if(p != myproc()){
       acquire(&p->lock);
       if(p->state == SLEEPING && p->chan == chan) {
-        p->state = RUNNABLE;
+        p->state = RUNNABLE;  // 将睡眠进程设为可运行 - set sleeping process to runnable
       }
       release(&p->lock);
     }
@@ -718,38 +777,42 @@ struct {
 } kmem;
 
 // 分配一个 4096 字节的物理页
+// Allocate one 4096-byte page of physical memory
 void* kalloc(void)
 {
   struct run *r;
 
-  acquire(&kmem.lock);
-  r = kmem.freelist;
+  acquire(&kmem.lock);  // 获取锁保护空闲链表 - acquire lock to protect free list
+  r = kmem.freelist;    // 获取第一个空闲页面 - get first free page
   if(r)
-    kmem.freelist = r->next;
-  release(&kmem.lock);
+    kmem.freelist = r->next;  // 更新空闲链表头 - update free list head
+  release(&kmem.lock);  // 释放锁 - release lock
 
   if(r)
-    memset((char*)r, 5, PGSIZE); // 填充垃圾值
+    memset((char*)r, 5, PGSIZE); // 填充垃圾值 - fill with junk
   return (void*)r;
 }
 
 // 释放物理页
+// Free the page of physical memory pointed at by pa
 void kfree(void *pa)
 {
   struct run *r;
 
+  // 检查地址有效性 - check address validity
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
   // 填充垃圾值，捕获悬空引用
+  // Fill with junk to catch dangling refs
   memset(pa, 1, PGSIZE);
 
   r = (struct run*)pa;
 
-  acquire(&kmem.lock);
-  r->next = kmem.freelist;
+  acquire(&kmem.lock);     // 获取锁 - acquire lock
+  r->next = kmem.freelist; // 插入到链表头 - insert at head of list
   kmem.freelist = r;
-  release(&kmem.lock);
+  release(&kmem.lock);     // 释放锁 - release lock
 }
 ```
 
@@ -796,24 +859,24 @@ Reserved  PPN[2]  PPN[1]  PPN[0] RSW   D   A   G   U   X   W   R   V
 **核心函数分析：**
 
 ```c
-// 页表遍历函数
+// 页表遍历函数 - Page table walk function
 pte_t* walk(pagetable_t pagetable, uint64 va, int alloc)
 {
-  if(va >= MAXVA)
+  if(va >= MAXVA)  // 检查虚拟地址范围 - check virtual address range
     panic("walk");
 
   for(int level = 2; level > 0; level--) {
-    pte_t *pte = &pagetable[PX(level, va)];
-    if(*pte & PTE_V) {
-      pagetable = (pagetable_t)PTE2PA(*pte);
+    pte_t *pte = &pagetable[PX(level, va)];  // 获取页表项 - get page table entry
+    if(*pte & PTE_V) {  // 如果页表项有效 - if page table entry is valid
+      pagetable = (pagetable_t)PTE2PA(*pte);  // 获取下一级页表 - get next level page table
     } else {
-      if(!alloc || (pagetable = (pde_t*)kalloc()) == 0)
+      if(!alloc || (pagetable = (pde_t*)kalloc()) == 0)  // 分配新页表 - allocate new page table
         return 0;
-      memset(pagetable, 0, PGSIZE);
-      *pte = PA2PTE(pagetable) | PTE_V;
+      memset(pagetable, 0, PGSIZE);  // 清零新页表 - clear new page table
+      *pte = PA2PTE(pagetable) | PTE_V;  // 设置页表项 - set page table entry
     }
   }
-  return &pagetable[PX(0, va)];
+  return &pagetable[PX(0, va)];  // 返回最终页表项 - return final page table entry
 }
 ```
 
@@ -826,19 +889,19 @@ pte_t* walk(pagetable_t pagetable, uint64 va, int alloc)
 
 2. **页表项标志位**
    ```c
-   #define PTE_V (1L << 0) // 有效位
-   #define PTE_R (1L << 1) // 可读
-   #define PTE_W (1L << 2) // 可写
-   #define PTE_X (1L << 3) // 可执行
-   #define PTE_U (1L << 4) // 用户可访问
+   #define PTE_V (1L << 0) // 有效位 - valid
+   #define PTE_R (1L << 1) // 可读 - readable
+   #define PTE_W (1L << 2) // 可写 - writable
+   #define PTE_X (1L << 3) // 可执行 - executable
+   #define PTE_U (1L << 4) // 用户可访问 - user accessible
    ```
    - 细粒度的权限控制
    - 硬件强制的访问保护
 
 3. **地址转换优化**
    ```c
-   #define PA2PTE(pa) ((((uint64)pa) >> 12) << 10)
-   #define PTE2PA(pte) (((pte) >> 10) << 12)
+   #define PA2PTE(pa) ((((uint64)pa) >> 12) << 10)   // 物理地址转页表项 - physical address to PTE
+   #define PTE2PA(pte) (((pte) >> 10) << 12)        // 页表项转物理地址 - PTE to physical address
    ```
    - 高效的地址转换宏
    - 利用页对齐特性
@@ -852,28 +915,28 @@ pagetable_t kvmmake(void)
 {
   pagetable_t kpgtbl;
 
-  kpgtbl = (pagetable_t) kalloc();
-  memset(kpgtbl, 0, PGSIZE);
+  kpgtbl = (pagetable_t) kalloc();  // 分配页表页 - allocate page table page
+  memset(kpgtbl, 0, PGSIZE);        // 清零页表 - clear page table
 
-  // UART 寄存器
+  // UART 寄存器 - UART registers
   kvmmap(kpgtbl, UART0, UART0, PGSIZE, PTE_R | PTE_W);
 
-  // virtio mmio 磁盘接口
+  // virtio mmio 磁盘接口 - virtio mmio disk interface
   kvmmap(kpgtbl, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
 
-  // PLIC
+  // PLIC - Platform-Level Interrupt Controller
   kvmmap(kpgtbl, PLIC, PLIC, 0x4000000, PTE_R | PTE_W);
 
-  // 映射内核代码为可执行和只读
+  // 映射内核代码为可执行和只读 - map kernel text executable and read-only
   kvmmap(kpgtbl, KERNBASE, KERNBASE, (uint64)etext-KERNBASE, PTE_R | PTE_X);
 
-  // 映射内核数据和物理 RAM
+  // 映射内核数据和物理 RAM - map kernel data and the physical RAM
   kvmmap(kpgtbl, (uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W);
 
-  // 映射 trampoline 到内核虚拟地址空间的最高地址
+  // 映射 trampoline 到内核虚拟地址空间的最高地址 - map trampoline for trap entry/exit
   kvmmap(kpgtbl, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
 
-  // 为每个进程分配和映射内核栈
+  // 为每个进程分配和映射内核栈 - allocate and map a kernel stack for each process
   proc_mapstacks(kpgtbl);
   
   return kpgtbl;
@@ -894,9 +957,9 @@ pagetable_t kvmmake(void)
 
 3. **权限分离**
    ```c
-   // 代码段：只读 + 可执行
+   // 代码段：只读 + 可执行 - text segment: read-only + executable
    kvmmap(kpgtbl, KERNBASE, KERNBASE, (uint64)etext-KERNBASE, PTE_R | PTE_X);
-   // 数据段：可读 + 可写
+   // 数据段：可读 + 可写 - data segment: readable + writable
    kvmmap(kpgtbl, (uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W);
    ```
    - W^X 原则：写和执行权限互斥
@@ -911,12 +974,13 @@ pagetable_t proc_pagetable(struct proc *p)
 {
   pagetable_t pagetable;
 
-  // 空的页表
+  // 空的页表 - empty page table
   pagetable = uvmcreate();
   if(pagetable == 0)
     return 0;
 
   // 映射 trampoline 代码到用户虚拟地址空间的最高页
+  // map the trampoline code (for system call return) at the highest user virtual address
   if(mappages(pagetable, TRAMPOLINE, PGSIZE,
               (uint64)trampoline, PTE_R | PTE_X) < 0){
     uvmfree(pagetable, 0);
@@ -924,6 +988,7 @@ pagetable_t proc_pagetable(struct proc *p)
   }
 
   // 映射 trapframe 到 trampoline 下方
+  // map the trapframe page just below the trampoline page, for trampoline.S
   if(mappages(pagetable, TRAPFRAME, PGSIZE,
               (uint64)(p->trapframe), PTE_R | PTE_W) < 0){
     uvmunmap(pagetable, TRAMPOLINE, 1, 0);
@@ -967,20 +1032,20 @@ uint64 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
   char *mem;
   uint64 a;
 
-  if(newsz < oldsz)
+  if(newsz < oldsz)  // 如果新大小小于旧大小，直接返回 - if new size < old size, return old size
     return oldsz;
 
-  oldsz = PGROUNDUP(oldsz);
+  oldsz = PGROUNDUP(oldsz);  // 页对齐旧大小 - page-align old size
   for(a = oldsz; a < newsz; a += PGSIZE){
-    mem = kalloc();
+    mem = kalloc();  // 分配物理页 - allocate physical page
     if(mem == 0){
-      uvmdealloc(pagetable, a, oldsz);
+      uvmdealloc(pagetable, a, oldsz);  // 分配失败，回滚 - allocation failed, rollback
       return 0;
     }
-    memset(mem, 0, PGSIZE);
+    memset(mem, 0, PGSIZE);  // 清零页面 - clear the page
     if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_R|PTE_U|xperm) != 0){
-      kfree(mem);
-      uvmdealloc(pagetable, a, oldsz);
+      kfree(mem);  // 映射失败，释放页面 - mapping failed, free the page
+      uvmdealloc(pagetable, a, oldsz);  // 回滚已分配的页面 - rollback allocated pages
       return 0;
     }
   }
@@ -996,7 +1061,7 @@ uint64 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
 
 2. **零初始化**
    ```c
-   memset(mem, 0, PGSIZE);
+   memset(mem, 0, PGSIZE);  // 清零页面内容 - clear page content
    ```
    - 防止信息泄露
    - 提供干净的内存环境
