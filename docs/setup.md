@@ -80,55 +80,127 @@ gdb
 
 ## macOS M4 原生环境搭建
 
-1) 安装 Homebrew（若已安装可跳过）
+### 环境要求
+- macOS（Apple Silicon M1/M2/M3/M4）
+- Homebrew 包管理器
+- 网络连接（用于下载工具链）
+
+### 详细安装步骤
+
+1) **安装 Homebrew**（若已安装可跳过）
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
-2) 安装 RISC-V 工具链（推荐）
+验证 Homebrew 安装：
 ```bash
-brew install riscv64-elf-gcc
+which brew
+# 应输出：/opt/homebrew/bin/brew
 ```
 
-3) 安装 QEMU（建议 ≥ 7.2）
+2) **安装完整的 RISC-V 工具链**
+```bash
+# 安装 RISC-V 工具链的所有组件
+brew install riscv64-elf-binutils riscv64-elf-gcc riscv64-elf-gdb
+```
+
+注意：这将安装以下工具：
+- `riscv64-elf-gcc`：RISC-V 交叉编译器
+- `riscv64-elf-binutils`：二进制工具（汇编器、链接器等）
+- `riscv64-elf-gdb`：RISC-V 调试器
+
+3) **安装 QEMU 模拟器**（建议 ≥ 7.2）
 ```bash
 brew install qemu
 ```
 
-4) 验证
+4) **验证工具链安装**
 ```bash
+# 验证 RISC-V 编译器
 riscv64-elf-gcc --version
-```
-```bash
-riscv64-unknown-elf-gcc --version
-```
-```bash
+# 预期输出：riscv64-elf-gcc (GCC) 15.2.0 或更高版本
+
+# 验证 QEMU 模拟器
 qemu-system-riscv64 --version
+# 预期输出：QEMU emulator version 10.0.3 或更高版本
 ```
 
-5) 构建与运行（仓库根目录）
+5) **编译和运行 xv6**（在仓库根目录执行）
 ```bash
+# 清理之前的编译文件
 make clean
-```
-```bash
+
+# 编译 xv6 内核和用户程序
 make
-```
-```bash
+
+# 运行 xv6 系统
 make qemu
 ```
 
-常见问题：
-- 找不到工具链前缀（TOOLPREFIX）：
+成功启动后，您应该看到类似以下输出：
+```
+xv6 kernel is booting
+
+hart 1 starting
+hart 2 starting
+init: starting sh
+$
+```
+
+在 xv6 shell 中，您可以运行以下命令测试系统：
 ```bash
+$ ls          # 列出文件
+$ cat README  # 查看 README 文件
+$ echo hello  # 输出 hello
+$ wc README   # 统计 README 文件的行数、单词数、字符数
+```
+
+退出 xv6：按 `Ctrl+A`，然后按 `X`
+
+### 常见问题与解决方案
+
+**问题 1：找不到工具链前缀（TOOLPREFIX）**
+```bash
+# 如果 make 报错找不到工具链，手动指定前缀
 make TOOLPREFIX=riscv64-elf-
 ```
-或
+
+**问题 2：QEMU 版本过低**
 ```bash
-make TOOLPREFIX=riscv64-unknown-elf-
-```
-- QEMU 版本过低：
-```bash
+# 升级 QEMU 到最新版本
 brew upgrade qemu
+
+# 检查版本（需要 ≥ 7.2）
+qemu-system-riscv64 --version
+```
+
+**问题 3：编译错误**
+```bash
+# 清理并重新编译
+make clean
+make
+
+# 如果仍有问题，检查工具链是否正确安装
+which riscv64-elf-gcc
+riscv64-elf-gcc --version
+```
+
+**问题 4：QEMU 启动失败**
+```bash
+# 检查是否有足够的内存和 CPU 资源
+# 可以减少 CPU 核心数
+CPUS=1 make qemu
+
+# 或者使用调试模式查看详细信息
+make qemu-gdb
+```
+
+**问题 5：权限问题**
+```bash
+# 确保当前用户有读写权限
+ls -la
+# 如果需要，修改权限
+chmod +x Makefile
 ```
 
 ---
@@ -271,6 +343,60 @@ multipass purge
   ```bash
   sudo chown -R ubuntu:ubuntu /home/ubuntu/xv6-riscv
   ```
+
+---
+
+## 环境搭建验证总结
+
+### 完整验证流程（macOS M4）
+
+按照以下步骤验证您的环境是否搭建成功：
+
+1. **验证工具链安装**
+```bash
+# 检查 RISC-V 编译器
+riscv64-elf-gcc --version
+# 预期输出：riscv64-elf-gcc (GCC) 15.2.0
+
+# 检查 QEMU 模拟器
+qemu-system-riscv64 --version
+# 预期输出：QEMU emulator version 10.0.3
+```
+
+2. **编译测试**
+```bash
+# 在 xv6-riscv 项目根目录
+make clean
+make
+# 应该无错误完成编译，生成 kernel/kernel 文件
+```
+
+3. **运行测试**
+```bash
+make qemu
+# 应该看到 xv6 启动信息和 shell 提示符 $
+```
+
+4. **功能测试**
+在 xv6 shell 中运行：
+```bash
+$ ls
+$ echo "Hello xv6!"
+$ cat README
+$ wc README
+```
+
+5. **退出系统**
+按 `Ctrl+A`，然后按 `X` 退出 QEMU
+
+### 成功标志
+- ✅ 工具链版本信息正确显示
+- ✅ 编译过程无错误
+- ✅ xv6 系统成功启动
+- ✅ shell 命令正常执行
+- ✅ 能够正常退出系统
+
+如果以上步骤都能正常完成，说明您的 xv6 开发环境已经搭建成功！
 
 ---
 

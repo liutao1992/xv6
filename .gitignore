@@ -16,3 +16,7 @@ kernel/kernel
 user/usys.S
 .gdbinit
 TAGS
+
+# IDE files
+.idea/
+.vscode/
