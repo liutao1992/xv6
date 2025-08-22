@@ -1,0 +1,175 @@
+<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .title { font-family: Arial, sans-serif; font-size: 18px; font-weight: bold; fill: #2c3e50; }
+      .subtitle { font-family: Arial, sans-serif; font-size: 14px; font-weight: bold; fill: #34495e; }
+      .text { font-family: Arial, sans-serif; font-size: 12px; fill: #2c3e50; }
+      .small-text { font-family: Arial, sans-serif; font-size: 10px; fill: #7f8c8d; }
+      .aligned-block { fill: #3498db; stroke: #2980b9; stroke-width: 2; }
+      .unaligned-block { fill: #e74c3c; stroke: #c0392b; stroke-width: 2; }
+      .memory-line { stroke: #34495e; stroke-width: 1; }
+      .address-text { font-family: monospace; font-size: 10px; fill: #2c3e50; }
+      .cache-line { fill: #f39c12; stroke: #e67e22; stroke-width: 1; opacity: 0.3; }
+      .arrow { stroke: #2c3e50; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#2c3e50" />
+    </marker>
+  </defs>
+  
+  <!-- Title -->
+  <text x="400" y="30" text-anchor="middle" class="title">16字节对齐原理与内存布局</text>
+  
+  <!-- Memory Address Scale -->
+  <text x="50" y="70" class="subtitle">内存地址布局</text>
+  
+  <!-- Memory addresses -->
+  <g transform="translate(50, 90)">
+    <!-- Address scale -->
+    <line x1="0" y1="0" x2="700" y2="0" class="memory-line"/>
+    
+    <!-- Address markers -->
+    <g class="address-markers">
+      <line x1="0" y1="-5" x2="0" y2="5" class="memory-line"/>
+      <text x="0" y="-10" text-anchor="middle" class="address-text">0x0000</text>
+      
+      <line x1="80" y1="-5" x2="80" y2="5" class="memory-line"/>
+      <text x="80" y="-10" text-anchor="middle" class="address-text">0x0010</text>
+      
+      <line x1="160" y1="-5" x2="160" y2="5" class="memory-line"/>
+      <text x="160" y="-10" text-anchor="middle" class="address-text">0x0020</text>
+      
+      <line x1="240" y1="-5" x2="240" y2="5" class="memory-line"/>
+      <text x="240" y="-10" text-anchor="middle" class="address-text">0x0030</text>
+      
+      <line x1="320" y1="-5" x2="320" y2="5" class="memory-line"/>
+      <text x="320" y="-10" text-anchor="middle" class="address-text">0x0040</text>
+      
+      <line x1="400" y1="-5" x2="400" y2="5" class="memory-line"/>
+      <text x="400" y="-10" text-anchor="middle" class="address-text">0x0050</text>
+    </g>
+    
+    <!-- 16-byte boundaries -->
+    <g class="boundaries">
+      <rect x="0" y="10" width="80" height="30" class="cache-line"/>
+      <text x="40" y="30" text-anchor="middle" class="small-text">16字节边界</text>
+      
+      <rect x="80" y="10" width="80" height="30" class="cache-line"/>
+      <text x="120" y="30" text-anchor="middle" class="small-text">16字节边界</text>
+      
+      <rect x="160" y="10" width="80" height="30" class="cache-line"/>
+      <text x="200" y="30" text-anchor="middle" class="small-text">16字节边界</text>
+    </g>
+  </g>
+  
+  <!-- Aligned vs Unaligned Comparison -->
+  <text x="50" y="180" class="subtitle">对齐 vs 非对齐访问对比</text>
+  
+  <!-- Aligned access -->
+  <g transform="translate(50, 200)">
+    <text x="0" y="0" class="text">✓ 16字节对齐访问</text>
+    
+    <!-- Memory blocks -->
+    <rect x="0" y="10" width="16" height="20" class="aligned-block"/>
+    <rect x="16" y="10" width="16" height="20" class="aligned-block"/>
+    <rect x="32" y="10" width="16" height="20" class="aligned-block"/>
+    <rect x="48" y="10" width="16" height="20" class="aligned-block"/>
+    
+    <!-- Data block -->
+    <rect x="0" y="40" width="64" height="15" fill="#27ae60" stroke="#229954" stroke-width="2"/>
+    <text x="32" y="52" text-anchor="middle" class="small-text" fill="white">stack0[4096 * NCPU]</text>
+    
+    <!-- Arrow -->
+    <line x1="32" y1="35" x2="32" y2="55" class="arrow"/>
+    
+    <text x="70" y="25" class="small-text">单次内存访问</text>
+    <text x="70" y="50" class="small-text">缓存行对齐</text>
+  </g>
+  
+  <!-- Unaligned access -->
+  <g transform="translate(400, 200)">
+    <text x="0" y="0" class="text">✗ 非对齐访问</text>
+    
+    <!-- Memory blocks -->
+    <rect x="0" y="10" width="16" height="20" class="aligned-block"/>
+    <rect x="16" y="10" width="16" height="20" class="aligned-block"/>
+    <rect x="32" y="10" width="16" height="20" class="aligned-block"/>
+    <rect x="48" y="10" width="16" height="20" class="aligned-block"/>
+    
+    <!-- Misaligned data block -->
+    <rect x="8" y="40" width="64" height="15" fill="#e74c3c" stroke="#c0392b" stroke-width="2"/>
+    <text x="40" y="52" text-anchor="middle" class="small-text" fill="white">未对齐数据</text>
+    
+    <!-- Multiple arrows -->
+    <line x1="20" y1="35" x2="20" y2="55" class="arrow"/>
+    <line x1="50" y1="35" x2="50" y2="55" class="arrow"/>
+    
+    <text x="70" y="25" class="small-text">多次内存访问</text>
+    <text x="70" y="50" class="small-text">跨缓存行</text>
+  </g>
+  
+  <!-- Multi-core Stack Layout -->
+  <text x="50" y="320" class="subtitle">多核栈空间布局</text>
+  
+  <g transform="translate(50, 340)">
+    <!-- CPU 0 Stack -->
+    <rect x="0" y="0" width="80" height="40" class="aligned-block"/>
+    <text x="40" y="25" text-anchor="middle" class="text" fill="white">CPU 0 Stack</text>
+    <text x="40" y="50" text-anchor="middle" class="small-text">stack0 + 0*4096</text>
+    
+    <!-- CPU 1 Stack -->
+    <rect x="90" y="0" width="80" height="40" class="aligned-block"/>
+    <text x="130" y="25" text-anchor="middle" class="text" fill="white">CPU 1 Stack</text>
+    <text x="130" y="50" text-anchor="middle" class="small-text">stack0 + 1*4096</text>
+    
+    <!-- CPU 2 Stack -->
+    <rect x="180" y="0" width="80" height="40" class="aligned-block"/>
+    <text x="220" y="25" text-anchor="middle" class="text" fill="white">CPU 2 Stack</text>
+    <text x="220" y="50" text-anchor="middle" class="small-text">stack0 + 2*4096</text>
+    
+    <!-- More CPUs indicator -->
+    <text x="280" y="25" class="text">... (最多8个CPU)</text>
+    
+    <!-- Alignment indicators -->
+    <line x1="0" y1="-10" x2="0" y2="-5" stroke="#e74c3c" stroke-width="2"/>
+    <line x1="90" y1="-10" x2="90" y2="-5" stroke="#e74c3c" stroke-width="2"/>
+    <line x1="180" y1="-10" x2="180" y2="-5" stroke="#e74c3c" stroke-width="2"/>
+    
+    <text x="45" y="-15" text-anchor="middle" class="small-text">16字节对齐边界</text>
+  </g>
+  
+  <!-- Performance Impact Chart -->
+  <text x="50" y="450" class="subtitle">性能影响对比</text>
+  
+  <g transform="translate(50, 470)">
+    <!-- Performance bars -->
+    <rect x="0" y="0" width="200" height="20" fill="#27ae60" stroke="#229954"/>
+    <text x="210" y="15" class="text">16字节对齐: 100% 性能</text>
+    
+    <rect x="0" y="30" width="120" height="20" fill="#f39c12" stroke="#e67e22"/>
+    <text x="130" y="45" class="text">8字节对齐: ~60% 性能</text>
+    
+    <rect x="0" y="60" width="80" height="20" fill="#e74c3c" stroke="#c0392b"/>
+    <text x="90" y="75" class="text">非对齐: ~40% 性能</text>
+    
+    <!-- Legend -->
+    <text x="400" y="15" class="small-text">• 单次缓存行访问</text>
+    <text x="400" y="30" class="small-text">• SIMD指令优化</text>
+    <text x="400" y="45" class="small-text">• 硬件预取效率</text>
+    <text x="400" y="60" class="small-text">• 原子操作支持</text>
+  </g>
+  
+  <!-- Technical Benefits -->
+  <text x="50" y="550" class="subtitle">技术优势总结</text>
+  
+  <g transform="translate(50, 570)">
+    <circle cx="5" cy="-3" r="3" fill="#27ae60"/>
+    <text x="15" y="0" class="small-text">缓存行对齐，减少内存访问次数</text>
+    
+    <circle cx="250" cy="-3" r="3" fill="#27ae60"/>
+    <text x="260" y="0" class="small-text">支持SIMD和向量指令优化</text>
+    
+    <circle cx="500" cy="-3" r="3" fill="#27ae60"/>
+    <text x="510" y="0" class="small-text">保证原子操作的正确性</text>
+  </g>
+</svg>
