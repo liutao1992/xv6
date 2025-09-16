@@ -20,3 +20,8 @@ TAGS
 # IDE files
 .idea/
 .vscode/
+.windsurfrules
+.cursor/rules/design.mdc
+.superdesign/design_iterations/default_ui_darkmode.css
+.claude/settings.local.json
+.claude/agents/os-instructor.md
