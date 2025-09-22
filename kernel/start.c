@@ -31,7 +31,7 @@ start()
   // 设置机器异常程序计数器指向main函数，为mret指令做准备
   // requires gcc -mcmodel=medany
   // 需要gcc编译选项 -mcmodel=medany 以支持任意地址模型
-  w_mepc((uint64)main);             // mret执行后将跳转到main函数
+  w_mepc((uint64)main);             // 设置mret的跳转目标地址为main函数
 
   // disable paging for now.
   // 暂时禁用分页机制
@@ -65,8 +65,8 @@ start()
 
   // switch to supervisor mode and jump to main().
   // 切换到监管者模式并跳转到main()函数
-  // mret指令将：1) 切换到MPP指定的特权级 2) 跳转到mepc指定的地址
-  // 机器模式返回指令，完成特权级切换
+  // mret指令原子执行：1) 切换到MPP指定的特权级 2) 跳转到mepc指定的地址
+  // 执行后将以Supervisor模式在main函数开始运行
   asm volatile("mret");             
 }
 
